@@ -23,7 +23,7 @@ ACTION daclifycore::propose(name proposer, string title, string description, vec
   require_auth(proposer);
 
   if(proposer != get_self() ){ //allow get_self to propose
-    check(is_custodian(proposer, true, true), "You can't propose group actions because you are not a custodian.");
+    check(is_custodian(proposer, true, true), "You can't propose group actions because you are not a guardian.");
   }
   
   time_point_sec now = time_point_sec(current_time_point());
@@ -116,7 +116,7 @@ ACTION daclifycore::propose(name proposer, string title, string description, vec
 //////////////
 ACTION daclifycore::approve(name approver, uint64_t id) {
   require_auth(approver);
-  check(is_custodian(approver, true, true), "You can't approve because you are not a custodian.");
+  check(is_custodian(approver, true, true), "You can't approve because you are not a guardian.");
   proposals_table _proposals(get_self(), get_self().value);
   auto prop_itr = _proposals.find(id);
   check(prop_itr != _proposals.end(), "Proposal not found.");
@@ -124,7 +124,7 @@ ACTION daclifycore::approve(name approver, uint64_t id) {
   std::set<name> new_approvals{};
   new_approvals.insert(approver);
   for (name old_approver: prop_itr->approvals) {
-    //check for dups and clean out non/old custodians.
+    //check for dups and clean out non/old guardians.
     //todo calculate current weight here
     if(is_custodian(old_approver, false, false)){
       check(new_approvals.insert(old_approver).second, "You already approved this proposal.");
@@ -140,7 +140,7 @@ ACTION daclifycore::approve(name approver, uint64_t id) {
 
 ACTION daclifycore::unapprove(name unapprover, uint64_t id) {
   require_auth(unapprover);
-  check(is_custodian(unapprover, true, true), "You can't unapprove because you are not a custodian.");
+  check(is_custodian(unapprover, true, true), "You can't unapprove because you are not a guardian.");
   proposals_table _proposals(get_self(), get_self().value);
   auto prop_itr = _proposals.find(id);
   check(prop_itr != _proposals.end(), "Proposal not found.");
@@ -148,7 +148,7 @@ ACTION daclifycore::unapprove(name unapprover, uint64_t id) {
   std::set<name> new_approvals{};
   bool has_approved = false;
   for (name old_approver: prop_itr->approvals) {
-    //check for dups and clean out non/old custodians.
+    //check for dups and clean out non/old guardians.
     if(old_approver == unapprover ){
       has_approved = true;
     }
@@ -184,7 +184,7 @@ ACTION daclifycore::cancel(name canceler, uint64_t id) {
       n.last_actor = canceler;
   });
   archive_proposal(name("cancelled"), _proposals, prop_itr);
-  is_custodian(canceler, true, true);//this will update the timestamp if canceler is (still) custodian
+  is_custodian(canceler, true, true);//this will update the timestamp if canceler is (still) guardian
   hookmanager(name("cancel"), get_self() );
 }
 
@@ -216,16 +216,16 @@ ACTION daclifycore::exec(name executer, uint64_t id) {
   archive_proposal(name("executed"), _proposals, prop_itr);
   //_proposals.erase(prop_itr);
 
-  is_custodian(executer, true, true);//this will update the timestamp if canceler is (still) custodian
+  is_custodian(executer, true, true);//this will update the timestamp if canceler is (still) guardian
   hookmanager(name("exec"), get_self() );
 }
 
 ACTION daclifycore::invitecust(name account){
   require_auth(get_self() );
-  check(account != get_self(), "Self can't be a custodian.");
+  check(account != get_self(), "Self can't be a guardian.");
 
-  //don't allow invitation of custodians when election module is installed
-  check(!has_module(name("elections")), "Can't invite a custodian when election module is linked.");
+  //don't allow invitation of guardians when election module is installed
+  check(!has_module(name("elections")), "Can't invite a guardian when election module is linked.");
   
   auto conf = get_group_conf();
 
@@ -234,7 +234,7 @@ ACTION daclifycore::invitecust(name account){
   custodians_table _custodians(get_self(), get_self().value);
   auto cust_itr = _custodians.find(account.value);
 
-  check(cust_itr == _custodians.end(), "Account already a custodian.");
+  check(cust_itr == _custodians.end(), "Account already a guardian.");
 
   corestate_table _corestate(get_self(), get_self().value);
   auto state = _corestate.get_or_create(get_self(), corestate());
@@ -268,7 +268,7 @@ ACTION daclifycore::removecust(name account){
   custodians_table _custodians(get_self(), get_self().value);
   auto cust_itr = _custodians.find(account.value);
 
-  check(cust_itr != _custodians.end(), "Account is not a custodian.");
+  check(cust_itr != _custodians.end(), "Account is not a guardian.");
     
   _custodians.erase(cust_itr);
   update_custodian_count(-1);
@@ -277,7 +277,7 @@ ACTION daclifycore::removecust(name account){
     update_active();
   }
   else{
-    check(false, "Can't remove the last custodian.");
+    check(false, "Can't remove the last guardian.");
   }
   hookmanager(name("removecust"), get_self() );
 }
@@ -286,7 +286,7 @@ ACTION daclifycore::imalive(name account){
   require_auth(account);
   custodians_table _custodians(get_self(), get_self().value);
   auto cust_itr = _custodians.find(account.value);
-  check(cust_itr != _custodians.end(), "You are not a custodian, no proof of live needed.");
+  check(cust_itr != _custodians.end(), "You are not a guardian, no proof of live needed.");
   if(!is_account_alive(cust_itr->last_active) ){
     update_custodian_last_active(account);
     update_active();
@@ -308,8 +308,8 @@ ACTION daclifycore::isetcusts(vector<name> accounts){
 
   int count_new = accounts.size();
   auto conf = get_group_conf();
-  check(count_new <= conf.max_custodians, "Too many new custodians");
-  check(count_new != 0, "Empty custodian list not allowed");
+  check(count_new <= conf.max_custodians, "Too many new guardians");
+  check(count_new != 0, "Empty guardian list not allowed");
 
   vector<custodians> new_custs;
   custodians_table _custodians(get_self(), get_self().value);
@@ -317,7 +317,7 @@ ACTION daclifycore::isetcusts(vector<name> accounts){
   time_point_sec now = time_point_sec(current_time_point().sec_since_epoch());
   //this can be done more efficient->intersection
   for(name cand : accounts){
-    //check if cand is already a custodian
+    //check if cand is already a guardian
     auto itr_existing = _custodians.find(cand.value);
     if(itr_existing != _custodians.end()){
       new_custs.push_back(*itr_existing);
@@ -333,7 +333,7 @@ ACTION daclifycore::isetcusts(vector<name> accounts){
     }
   }
 
-  //empty current custodian table
+  //empty current guardian table
   auto clean_itr = _custodians.begin();
   while(clean_itr != _custodians.end() ) {
     clean_itr = _custodians.erase(clean_itr);
